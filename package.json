@@ -1,0 +1,58 @@
+{
+  "name": "afreemail-desktop",
+  "version": "0.1.0",
+  "description": "AFreeMail desktop shell -- a trimmed Electron wrapper around the authenticated afreemail-web app (mail, settings, Contribion). No marketing/legal/docs pages ship in the app bundle since the shell never navigates to them.",
+  "private": true,
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "build": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux",
+    "release": "electron-builder --mac --win --linux --publish always"
+  },
+  "dependencies": {
+    "electron-log": "^5.2.4",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "@electron/notarize": "^2.5.0",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.afreemail.desktop",
+    "productName": "AFreeMail",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "azunna",
+      "repo": "afreemail-desktop"
+    },
+    "afterSign": "src/notarize.js",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"],
+      "icon": "build/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Network",
+      "icon": "build/icon.png"
+    }
+  }
+}
