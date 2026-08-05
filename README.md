@@ -34,12 +34,34 @@ npm run dist:mac   # or dist:win / dist:linux
 Packaged builds point at `https://mail.afreemail.com/mail` by default (also
 overridable via `AFREEMAIL_DESKTOP_URL`, e.g. to point at a staging deploy).
 
+## Releasing
+
+```
+npm run release   # builds mac+win+linux and publishes to GitHub Releases
+```
+
+`build.publish` points at `azunna/afreemail-desktop`. `electron-updater` checks
+that feed on launch (packaged builds only) and asks before downloading/
+installing -- never silent, since this is a mail client.
+
+## App icon
+
+`build/icon.icns` / `.ico` / `.png` are generated from the brand mark in
+`build/source/` (a diagonal gradient from the logo's native blue `#0550EE` to
+the app's in-app primary indigo `#6366F1`, white glyph on top, rounded-square
+canvas). To regenerate after a brand refresh, see the compositing steps this
+was built with -- extract the glyph as an alpha-masked layer, composite onto a
+gradient rounded-square, export at 1024x1024, then downsample to the standard
+icon sets (`iconutil` for `.icns`, Pillow's ICO writer for `.ico`).
+
 ## Not yet done
 
-- No app icon is configured (`build.mac/win/linux` in `package.json` has no
-  `icon` field) -- electron-builder will fall back to its default icon. Needs a
-  real `.icns`/`.ico`/`.png` set before shipping.
-- No auto-update wiring (`electron-updater`) -- installs are manual downloads
-  for now.
-- Not code-signed/notarized -- `dist:mac` output will trigger Gatekeeper
-  warnings until signing is set up.
+- Not code-signed/notarized -- ran a real unsigned `dist:mac` build (produces
+  a working `.dmg`/`.app`) to confirm the pipeline works end to end, but
+  Gatekeeper/SmartScreen will warn until `CSC_LINK`/`CSC_KEY_PASSWORD` (signing
+  cert) and `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID`
+  (notarization, see `src/notarize.js`) are set as env vars for a release build.
+- No GitHub Release has actually been published yet, so the web app's
+  `/product/desktop` download page still shows "no build yet" and
+  `electron-updater` has nothing to check against. Run `npm run release` when
+  ready to cut v0.1.0.
