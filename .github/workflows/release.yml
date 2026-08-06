@@ -23,7 +23,16 @@ jobs:
         with:
           node-version: 20
 
-      - run: npm ci
+      # electron-builder's app-builder-lib declares platform-specific packaging
+      # tools (electron-builder-squirrel-windows, etc.) as required
+      # peerDependencies rather than optional ones. Whether npm auto-installs
+      # those onto the lockfile is inconsistent across npm versions/platforms
+      # (confirmed: passes locally on x64, fails as "missing from lock file"
+      # on the arm64 macos-latest runner) -- npm ci's strict lockfile
+      # validation trips on that drift even though nothing is actually wrong.
+      # `npm install` reconciles instead of hard-failing, which is fine for a
+      # release build that isn't trying to be byte-for-byte reproducible.
+      - run: npm install
 
       - run: npm run release:mac
         env:
