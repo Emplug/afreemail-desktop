@@ -70,6 +70,7 @@ function errorPageHtml(targetUrl) {
 
 let mainWindow = null;
 let retryTimer = null;
+let hasRetriedUpdateCheck = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -108,6 +109,18 @@ function createWindow() {
     retryTimer = setTimeout(() => {
       if (mainWindow) mainWindow.loadURL(APP_URL);
     }, 10000);
+    // A load failure that isn't a one-off blip is exactly the situation a newer
+    // build might already fix -- this shell's own 0.1.1 shipped with a URL bug
+    // that put every user in permanent retry loop, recoverable only by installing
+    // 0.1.2. checkForUpdates() already runs once at startup, but a user who
+    // dismissed or never saw that one-time dialog had no other way back to it --
+    // stuck retrying the same broken URL forever with no path to the fix. Guarded
+    // to fire once per app session (not once per 10s retry tick) so a user who
+    // says "Later" doesn't get the same dialog stacked on top of itself.
+    if (app.isPackaged && !hasRetriedUpdateCheck) {
+      hasRetriedUpdateCheck = true;
+      autoUpdater.checkForUpdates().catch((err) => log.error('[afreemail-desktop] update check on load failure', err));
+    }
   }
 
   mainWindow.webContents.on('did-finish-load', () => {
