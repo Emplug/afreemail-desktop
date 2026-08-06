@@ -11,7 +11,8 @@
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux",
-    "release": "electron-builder --mac --win --linux --publish always"
+    "release": "electron-builder --mac --win --linux --publish always",
+    "release:mac": "electron-builder --mac --publish always"
   },
   "dependencies": {
     "electron-log": "^5.2.4",

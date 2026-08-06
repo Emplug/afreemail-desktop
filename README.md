@@ -36,9 +36,30 @@ overridable via `AFREEMAIL_DESKTOP_URL`, e.g. to point at a staging deploy).
 
 ## Releasing
 
+Locally (any platform you have creds for):
+
 ```
-npm run release   # builds mac+win+linux and publishes to GitHub Releases
+npm run release        # builds mac+win+linux and publishes to GitHub Releases
+npm run release:mac    # mac only
 ```
+
+Or via CI (`.github/workflows/release.yml`, macOS only for now): push a tag
+matching `v*` (e.g. `git tag v0.1.0 && git push origin v0.1.0`), or trigger it
+manually from the repo's Actions tab / `gh workflow run release.yml`. This
+builds on a real macOS runner, signs, notarizes, and publishes -- your signing
+credentials only ever live in this repo's Actions secrets, never on a laptop
+disk or in a shell history.
+
+To add the secrets (GitHub repo -> Settings -> Secrets and variables ->
+Actions -> New repository secret), five values are needed:
+
+| Secret | Where it comes from |
+|---|---|
+| `CSC_LINK` | Your Developer ID Application cert exported as `.p12` from Keychain Access, then base64-encoded: `base64 -i Certificates.p12 \| pbcopy`, paste the clipboard contents as the secret value |
+| `CSC_KEY_PASSWORD` | The password you set when exporting that `.p12` |
+| `APPLE_ID` | Your Apple ID email |
+| `APPLE_APP_SPECIFIC_PASSWORD` | Generated at appleid.apple.com -> Sign-In and Security -> App-Specific Passwords -- not your real Apple ID password |
+| `APPLE_TEAM_ID` | developer.apple.com -> Membership -- a 10-character code |
 
 `build.publish` points at `azunna/afreemail-desktop`. `electron-updater` checks
 that feed on launch (packaged builds only) and asks before downloading/
