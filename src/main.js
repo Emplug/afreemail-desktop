@@ -32,7 +32,37 @@ function isAppOrigin(url, appOrigin) {
   }
 }
 
+// Shown in place of a blank window when APP_URL can't be reached (server down,
+// no internet, etc.) -- without this, a load failure just leaves the user
+// staring at the BrowserWindow's plain backgroundColor with no explanation.
+// Retry re-navigates to the real APP_URL directly rather than reloading this
+// page, since this page's own origin is `data:`, not the app's.
+function errorPageHtml(targetUrl) {
+  const safeUrl = targetUrl.replace(/'/g, "\\'");
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><style>
+  body { margin:0; height:100vh; display:flex; align-items:center; justify-content:center;
+         background:#0f172a; color:#e2e8f0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  .box { text-align:center; max-width:360px; padding:0 24px; }
+  h1 { font-size:18px; font-weight:600; margin:0 0 8px; }
+  p { font-size:13px; color:#94a3b8; line-height:1.5; margin:0 0 20px; }
+  button { background:#6366f1; color:#fff; border:none; border-radius:8px; padding:10px 20px;
+           font-size:13px; font-weight:600; cursor:pointer; }
+  button:hover { background:#4f46e5; }
+</style></head>
+<body>
+  <div class="box">
+    <h1>Can't reach AFreeMail</h1>
+    <p>Check your internet connection, or the server may be temporarily unavailable. This retries automatically.</p>
+    <button onclick="window.location.href='${safeUrl}'">Retry now</button>
+  </div>
+</body>
+</html>`;
+}
+
 let mainWindow = null;
+let retryTimer = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -64,11 +94,37 @@ function createWindow() {
     }
   });
 
+  function showLoadFailure(reason) {
+    console.error(`[afreemail-desktop] ${reason}`);
+    mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorPageHtml(APP_URL))}`);
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => {
+      if (mainWindow) mainWindow.loadURL(APP_URL);
+    }, 10000);
+  }
+
   mainWindow.webContents.on('did-finish-load', () => {
-    console.log(`[afreemail-desktop] loaded ${mainWindow.webContents.getURL()}`);
+    const url = mainWindow.webContents.getURL();
+    console.log(`[afreemail-desktop] loaded ${url}`);
+    // A data: URL here means it's our own error page, not a real recovery --
+    // leave the pending retry (scheduled below) running.
+    if (!url.startsWith('data:')) {
+      clearTimeout(retryTimer);
+    }
   });
-  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
-    console.error(`[afreemail-desktop] failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame) return; // ignore failed sub-resources (images, fonts, etc.)
+    showLoadFailure(`failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
+  });
+  // A 4xx/5xx response (server down, bad gateway, etc.) is not a network-level
+  // failure as far as Chromium is concerned -- it "successfully" loads the
+  // error response body, so did-fail-load never fires for it. did-navigate's
+  // httpResponseCode is the only place that status is visible.
+  mainWindow.webContents.on('did-navigate', (_event, url, httpResponseCode) => {
+    if (url.startsWith('data:')) return; // our own error page, not a real nav
+    if (httpResponseCode >= 400) {
+      showLoadFailure(`server responded ${httpResponseCode} for ${url}`);
+    }
   });
 
   mainWindow.loadURL(APP_URL);

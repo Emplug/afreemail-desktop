@@ -1,6 +1,6 @@
 {
   "name": "afreemail-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AFreeMail desktop shell -- a trimmed Electron wrapper around the authenticated afreemail-web app (mail, settings, Contribion). No marketing/legal/docs pages ship in the app bundle since the shell never navigates to them.",
   "private": true,
   "author": "AFreeMail",
