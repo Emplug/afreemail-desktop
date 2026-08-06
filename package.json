@@ -34,7 +34,7 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "azunna",
+      "owner": "Emplug",
       "repo": "afreemail-desktop",
       "releaseType": "release"
     },

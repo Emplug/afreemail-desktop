@@ -61,7 +61,7 @@ Actions -> New repository secret), five values are needed:
 | `APPLE_APP_SPECIFIC_PASSWORD` | Generated at appleid.apple.com -> Sign-In and Security -> App-Specific Passwords -- not your real Apple ID password |
 | `APPLE_TEAM_ID` | developer.apple.com -> Membership -- a 10-character code |
 
-`build.publish` points at `azunna/afreemail-desktop`. `electron-updater` checks
+`build.publish` points at `Emplug/afreemail-desktop`. `electron-updater` checks
 that feed on launch (packaged builds only) and asks before downloading/
 installing -- never silent, since this is a mail client.
 
@@ -77,12 +77,6 @@ icon sets (`iconutil` for `.icns`, Pillow's ICO writer for `.ico`).
 
 ## Not yet done
 
-- Not code-signed/notarized -- ran a real unsigned `dist:mac` build (produces
-  a working `.dmg`/`.app`) to confirm the pipeline works end to end, but
-  Gatekeeper/SmartScreen will warn until `CSC_LINK`/`CSC_KEY_PASSWORD` (signing
-  cert) and `APPLE_ID`/`APPLE_APP_SPECIFIC_PASSWORD`/`APPLE_TEAM_ID`
-  (notarization, see `src/notarize.js`) are set as env vars for a release build.
-- No GitHub Release has actually been published yet, so the web app's
-  `/product/desktop` download page still shows "no build yet" and
-  `electron-updater` has nothing to check against. Run `npm run release` when
-  ready to cut v0.1.0.
+- Windows/Linux aren't signed or built by CI yet -- mac only, until those
+  signing credentials exist (see `Not yet done` in the original scoping, or
+  just add a `windows`/`linux` job to `release.yml` once you have a cert).
