@@ -13,8 +13,15 @@ autoUpdater.autoDownload = false;
 // runs afreemail-web on :5273 instead to avoid that clash, so that's the default
 // here too. In a packaged build this points at the real production app. Both are
 // overridable via env var for testing against a staging URL.
+//
+// www.afreemail.com is the actual frontend (afreemail-web). mail.afreemail.com
+// is a *different* server -- the Haraka mail backend's own admin dashboard, not
+// the app -- confirmed by curling it directly: root serves "Haraka Mail Server -
+// Admin Dashboard" and /mail 404s. An earlier version of this file pointed at
+// mail.afreemail.com/mail by mistake, which would 404 even with production
+// fully healthy.
 const DEFAULT_DEV_URL = 'http://localhost:5273/mail';
-const DEFAULT_PROD_URL = 'https://mail.afreemail.com/mail';
+const DEFAULT_PROD_URL = 'https://www.afreemail.com/mail';
 const APP_URL = process.env.AFREEMAIL_DESKTOP_URL
   || (app.isPackaged ? DEFAULT_PROD_URL : DEFAULT_DEV_URL);
 
