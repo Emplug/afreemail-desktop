@@ -36,7 +36,7 @@
       "provider": "github",
       "owner": "azunna",
       "repo": "afreemail-desktop",
-      "draft": false
+      "releaseType": "release"
     },
     "afterSign": "src/notarize.js",
     "mac": {
