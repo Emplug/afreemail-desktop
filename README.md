@@ -43,12 +43,13 @@ npm run release        # builds mac+win+linux and publishes to GitHub Releases
 npm run release:mac    # mac only
 ```
 
-Or via CI (`.github/workflows/release.yml`, macOS only for now): push a tag
-matching `v*` (e.g. `git tag v0.1.0 && git push origin v0.1.0`), or trigger it
-manually from the repo's Actions tab / `gh workflow run release.yml`. This
-builds on a real macOS runner, signs, notarizes, and publishes -- your signing
-credentials only ever live in this repo's Actions secrets, never on a laptop
-disk or in a shell history.
+Or via CI (`.github/workflows/release.yml`): push a tag matching `v*` (e.g.
+`git tag v0.1.0 && git push origin v0.1.0`), or trigger it manually from the
+repo's Actions tab / `gh workflow run release.yml`. This builds macOS (signed,
+notarized) and Linux (AppImage, unsigned -- no Linux-side equivalent of
+Gatekeeper to satisfy) on their real respective runners, then publishes both
+once both finish. Your Apple signing credentials only ever live in this
+repo's Actions secrets, never on a laptop disk or in a shell history.
 
 To add the secrets (GitHub repo -> Settings -> Secrets and variables ->
 Actions -> New repository secret), five values are needed:
@@ -77,6 +78,11 @@ icon sets (`iconutil` for `.icns`, Pillow's ICO writer for `.ico`).
 
 ## Not yet done
 
-- Windows/Linux aren't signed or built by CI yet -- mac only, until those
-  signing credentials exist (see `Not yet done` in the original scoping, or
-  just add a `windows`/`linux` job to `release.yml` once you have a cert).
+- Windows isn't built by CI yet -- there's no code-signing certificate, and an
+  unsigned `.exe` triggers a "Windows protected your PC" SmartScreen warning
+  severe enough that handing it out unsigned would do more harm than good.
+  Add a `windows` job to `release.yml` (matching the `mac` job's
+  `CSC_LINK`/`CSC_KEY_PASSWORD` pattern, with a real Authenticode cert instead
+  of an Apple one) once that exists. `/product/desktop` on afreemail-web
+  already handles this correctly either way -- it only shows a Windows
+  download button once a `.exe` asset actually exists on the release.
