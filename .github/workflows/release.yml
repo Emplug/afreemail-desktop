@@ -44,8 +44,14 @@ jobs:
           token: ${{ secrets.AFREEMAIL_WEB_CHECKOUT_TOKEN }}
 
       - name: Build afreemail-web and bundle it into the desktop app
+        # npm ci here (not just this repo's own npm install below) hits the same
+        # class of lockfile-drift failure as the comment on npm install below
+        # describes: afreemail-web's package-lock.json isn't in exact sync with its
+        # package.json (a transitive picomatch version mismatch, confirmed via a
+        # real CI run) -- npm install reconciles instead of hard-failing, same
+        # tradeoff already accepted for this repo's own install.
         run: |
-          npm ci --prefix afreemail-web-src
+          npm install --prefix afreemail-web-src
           npm run build --prefix afreemail-web-src
           rm -rf src/web-dist
           mkdir -p src/web-dist
@@ -89,8 +95,13 @@ jobs:
           token: ${{ secrets.AFREEMAIL_WEB_CHECKOUT_TOKEN }}
 
       - name: Build afreemail-web and bundle it into the desktop app
+        # npm install, not npm ci -- afreemail-web's package-lock.json isn't in
+        # exact sync with its package.json (a transitive picomatch version
+        # mismatch, confirmed via a real CI run: `npm ci` refuses to install at
+        # all when that happens). Same tradeoff the mac job's own npm install
+        # below already accepts for this repo's own lockfile drift.
         run: |
-          npm ci --prefix afreemail-web-src
+          npm install --prefix afreemail-web-src
           npm run build --prefix afreemail-web-src
           rm -rf src/web-dist
           mkdir -p src/web-dist
