@@ -130,6 +130,19 @@ jobs:
     needs: [mac, linux]
     runs-on: ubuntu-latest
     steps:
-      - run: gh release edit "${{ github.ref_name }}" --draft=false --repo Emplug/afreemail-desktop
+      - uses: actions/checkout@v4
+
+      # github.ref_name is only a version tag (matching electron-builder's own
+      # v<version> release naming) when this run was triggered by a tag push --
+      # for a workflow_dispatch run (README documents this as an equally valid
+      # way to release, not just tag push) it's the branch name instead, e.g.
+      # "main", which isn't a release and made this fail with "release not
+      # found" the first time this ran that way. package.json's version is what
+      # electron-builder itself actually used to name the release, so read it
+      # from there instead of assuming anything about how this run started.
+      - name: Un-draft the release electron-builder just updated
+        run: |
+          version=$(node -p "require('./package.json').version")
+          gh release edit "v$version" --draft=false --repo Emplug/afreemail-desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
