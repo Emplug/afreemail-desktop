@@ -1,4 +1,7 @@
 node_modules/
 release/
 dist/
+# Bundled copy of afreemail-web's production build (see package.json's build:web
+# script and .github/workflows/release.yml) -- generated, not source.
+src/web-dist/
 .DS_Store

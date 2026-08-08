@@ -1,5 +1,7 @@
-const { app, BrowserWindow, shell, Menu, dialog } = require('electron');
+const { app, BrowserWindow, shell, Menu, dialog, protocol, net } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const { pathToFileURL } = require('url');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 
@@ -11,19 +13,35 @@ autoUpdater.autoDownload = false;
 // defaults to :8080, but that collides with the local backend's HTTP API (also
 // :8080 per config/http.ini) -- this repo's own dev tooling (.claude/launch.json)
 // runs afreemail-web on :5273 instead to avoid that clash, so that's the default
-// here too. In a packaged build this points at the real production app. Both are
-// overridable via env var for testing against a staging URL.
+// here too. Both are overridable via env var for testing against a staging URL.
 //
-// www.afreemail.com is the actual frontend (afreemail-web). mail.afreemail.com
-// is a *different* server -- the Haraka mail backend's own admin dashboard, not
-// the app -- confirmed by curling it directly: root serves "Haraka Mail Server -
-// Admin Dashboard" and /mail 404s. An earlier version of this file pointed at
-// mail.afreemail.com/mail by mistake, which would 404 even with production
-// fully healthy.
+// The packaged build no longer loads the live site over the network at all --
+// it loads a bundled copy of afreemail-web's own production build (see
+// scripts/build:web and README.md) through the custom `afreemail://` scheme
+// registered below, so the app shell opens instantly with no internet
+// connection at all. Real data (mail sync, sending, etc.) still goes over the
+// network to the real backend exactly as before -- only the app *shell* is now
+// local. See WEB_DIST_DIR/the protocol.handle block below.
 const DEFAULT_DEV_URL = 'http://localhost:5273/mail';
-const DEFAULT_PROD_URL = 'https://www.afreemail.com/mail';
+const DEFAULT_PROD_URL = 'afreemail://app/mail';
 const APP_URL = process.env.AFREEMAIL_DESKTOP_URL
   || (app.isPackaged ? DEFAULT_PROD_URL : DEFAULT_DEV_URL);
+
+// Bundled copy of afreemail-web's `dist/` -- populated by `npm run build:web`
+// locally, or by the CI step that checks out and builds afreemail-web before
+// electron-builder runs (see .github/workflows/release.yml). Lives as a sibling
+// of this file so it's picked up by package.json's existing `files: ["src/**/*"]`
+// with no packaging config change needed.
+const WEB_DIST_DIR = path.join(__dirname, 'web-dist');
+
+// Must be called before the app is ready (Electron requirement) -- `standard:
+// true` gives the scheme real origin/URL-resolution semantics (relative paths,
+// history-API routing) instead of the more restricted default, which is what
+// lets afreemail-web's BrowserRouter and root-absolute asset paths work
+// unchanged from how they already work when served over http(s).
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'afreemail', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
+]);
 
 // afreemail-web is a single SPA that also serves the marketing site -- the desktop
 // shell only ever loads /mail and /auth. Any top-level navigation to a different
@@ -154,8 +172,42 @@ function createWindow() {
   });
 }
 
-// Minimal menu -- the default Electron menu carries items (About Electron, Node/
-// Chromium version dialogs, etc.) that don't belong in a branded mail client.
+// Serves the bundled copy of afreemail-web's production build through the
+// `afreemail://` scheme registered above -- this is what makes the app shell
+// itself open with no network connection (see WEB_DIST_DIR comment). Any
+// request path that isn't a real file on disk (i.e. every client-side route
+// afreemail-web's BrowserRouter owns, like /mail or /auth) falls back to
+// index.html, the same rewrite rule any SPA host applies.
+function registerAppProtocol() {
+  protocol.handle('afreemail', async (request) => {
+    try {
+      const url = new URL(request.url);
+      let pathname = decodeURIComponent(url.pathname);
+      if (pathname === '' || pathname === '/') pathname = '/index.html';
+      let filePath = path.normalize(path.join(WEB_DIST_DIR, pathname));
+      if (!filePath.startsWith(WEB_DIST_DIR) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+        filePath = path.join(WEB_DIST_DIR, 'index.html');
+      }
+      return net.fetch(pathToFileURL(filePath).toString());
+    } catch (err) {
+      log.error('[afreemail-desktop] afreemail:// protocol error: ' + err.message);
+      return new Response('Internal error', { status: 500 });
+    }
+  });
+}
+
+// Sends a menu action to the renderer, where afreemail-web's src/lib/desktopBridge.ts
+// picks it up via the onMenuAction bridge exposed in preload.js and routes it to the
+// same handlers the in-app UI already calls (openCompose, etc.) -- the menu never
+// duplicates that logic, only triggers it.
+function sendMenuAction(action) {
+  if (mainWindow) mainWindow.webContents.send('menu-action', action);
+}
+
+// Minimal-but-real menu -- the default Electron menu carries items (About Electron,
+// Node/Chromium version dialogs, etc.) that don't belong in a branded mail client,
+// and until now this menu bar had no app functionality in it at all beyond that
+// default OS chrome. Mail/AURA below are real actions, not placeholders.
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const template = [
@@ -171,6 +223,15 @@ function buildMenu() {
         { role: 'quit' },
       ],
     }] : []),
+    {
+      label: 'Mail',
+      submenu: [
+        { label: 'New Message', accelerator: 'CmdOrCtrl+N', click: () => sendMenuAction('compose') },
+        { label: 'Search', accelerator: 'CmdOrCtrl+F', click: () => sendMenuAction('search') },
+        { type: 'separator' },
+        { label: 'Inbox', click: () => sendMenuAction('inbox') },
+      ],
+    },
     {
       label: 'Edit',
       submenu: [
@@ -188,6 +249,13 @@ function buildMenu() {
         { type: 'separator' },
         { role: 'togglefullscreen' },
         ...(!app.isPackaged ? [{ type: 'separator' }, { role: 'toggleDevTools' }] : []),
+      ],
+    },
+    {
+      label: 'AURA',
+      submenu: [
+        { label: 'Voice Assistant', accelerator: 'CmdOrCtrl+Shift+A', click: () => sendMenuAction('aura-voice') },
+        { label: 'AURA Settings', click: () => sendMenuAction('aura-settings') },
       ],
     },
     {
@@ -246,6 +314,7 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    registerAppProtocol();
     buildMenu();
     createWindow();
     setupAutoUpdate();

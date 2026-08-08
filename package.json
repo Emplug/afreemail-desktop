@@ -1,13 +1,14 @@
 {
   "name": "afreemail-desktop",
   "version": "0.1.3",
-  "description": "AFreeMail desktop shell -- a trimmed Electron wrapper around the authenticated afreemail-web app (mail, settings, Contribion). No marketing/legal/docs pages ship in the app bundle since the shell never navigates to them.",
+  "description": "AFreeMail desktop shell -- an Electron app that bundles a real copy of afreemail-web (mail, settings, Contribion) so it opens instantly with no internet connection, talking to the real backend only for data. No marketing/legal/docs pages ship in the app bundle since the shell never navigates to them.",
   "private": true,
   "author": "AFreeMail",
   "main": "src/main.js",
   "scripts": {
     "dev": "electron .",
     "build": "electron-builder",
+    "build:web": "rm -rf src/web-dist && mkdir -p src/web-dist && npm run build --prefix ../afreemail-web && cp -r ../afreemail-web/dist/. src/web-dist/",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux",

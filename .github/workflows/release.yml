@@ -10,6 +10,14 @@ name: Release
 # (see README's "Not yet done" section). Add a windows job here, matching the
 # mac job's CSC_LINK/CSC_KEY_PASSWORD pattern but with a real Authenticode
 # cert, once that exists.
+#
+# Both platform jobs also build afreemail-web from its own repo and bundle the
+# result into src/web-dist/ before electron-builder packages the app -- this is
+# what lets the shell open with no internet connection at all (see main.js's
+# WEB_DIST_DIR/afreemail:// protocol handling and README.md). That checkout
+# needs a token with read access to afreemail-web -- the default GITHUB_TOKEN
+# only has access to the repo the workflow itself runs in, so this uses a
+# separate fine-grained PAT secret (README.md's secrets table).
 on:
   push:
     tags:
@@ -28,6 +36,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Emplug/afreemail-web
+          path: afreemail-web-src
+          token: ${{ secrets.AFREEMAIL_WEB_CHECKOUT_TOKEN }}
+
+      - name: Build afreemail-web and bundle it into the desktop app
+        run: |
+          npm ci --prefix afreemail-web-src
+          npm run build --prefix afreemail-web-src
+          rm -rf src/web-dist
+          mkdir -p src/web-dist
+          cp -r afreemail-web-src/dist/. src/web-dist/
+        env:
+          VITE_HARAKA_API_URL: https://mail.afreemail.com
 
       # electron-builder's app-builder-lib declares platform-specific packaging
       # tools (electron-builder-squirrel-windows, etc.) as required
@@ -57,6 +81,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Emplug/afreemail-web
+          path: afreemail-web-src
+          token: ${{ secrets.AFREEMAIL_WEB_CHECKOUT_TOKEN }}
+
+      - name: Build afreemail-web and bundle it into the desktop app
+        run: |
+          npm ci --prefix afreemail-web-src
+          npm run build --prefix afreemail-web-src
+          rm -rf src/web-dist
+          mkdir -p src/web-dist
+          cp -r afreemail-web-src/dist/. src/web-dist/
+        env:
+          VITE_HARAKA_API_URL: https://mail.afreemail.com
 
       - run: npm install
 
