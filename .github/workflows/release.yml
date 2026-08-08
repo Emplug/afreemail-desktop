@@ -4,12 +4,13 @@ name: Release
 # repo's GitHub Releases, which is also what /product/desktop on afreemail-web
 # and electron-updater both read from.
 #
-# Windows isn't built here yet -- there's no code-signing certificate, and an
-# unsigned .exe triggers a "Windows protected your PC" SmartScreen warning
-# severe enough that handing it out unsigned would do more harm than good
-# (see README's "Not yet done" section). Add a windows job here, matching the
-# mac job's CSC_LINK/CSC_KEY_PASSWORD pattern but with a real Authenticode
-# cert, once that exists.
+# Windows is now built and Authenticode-signed here too (OV cert from Certum, via
+# My-SSL) -- WIN_CSC_LINK/WIN_CSC_KEY_PASSWORD are separate secrets from the mac
+# job's CSC_LINK/CSC_KEY_PASSWORD (different certs entirely) mapped onto the same
+# electron-builder-recognized env var names within the windows job's own scope.
+# Real SmartScreen reputation still builds up gradually on an OV cert (no warning
+# period only applies to EV) -- see the code-signing-decision discussion this was
+# chosen from.
 #
 # Both platform jobs also build afreemail-web from its own repo and bundle the
 # result into src/web-dist/ before electron-builder packages the app -- this is
@@ -117,6 +118,42 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Emplug/afreemail-web
+          path: afreemail-web-src
+          token: ${{ secrets.AFREEMAIL_WEB_CHECKOUT_TOKEN }}
+
+      # windows-latest runners ship Git Bash -- `shell: bash` reuses the exact
+      # same script as the mac/linux jobs instead of a separate PowerShell version.
+      - name: Build afreemail-web and bundle it into the desktop app
+        shell: bash
+        run: |
+          npm install --prefix afreemail-web-src
+          npm run build --prefix afreemail-web-src
+          rm -rf src/web-dist
+          mkdir -p src/web-dist
+          cp -r afreemail-web-src/dist/. src/web-dist/
+        env:
+          VITE_HARAKA_API_URL: https://mail.afreemail.com
+
+      - run: npm install
+
+      - run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
   # electron-builder always leaves an existing release in draft state when it
   # updates one (confirmed: this happens regardless of the package.json
   # `publish.releaseType` config, which only affects brand-new releases) --
@@ -127,7 +164,7 @@ jobs:
   # otherwise whichever job finishes first would publish the release before
   # the other platform's assets exist.
   publish:
-    needs: [mac, linux]
+    needs: [mac, linux, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

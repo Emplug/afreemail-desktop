@@ -74,16 +74,16 @@ npm run release:mac    # mac only
 
 Or via CI (`.github/workflows/release.yml`): push a tag matching `v*` (e.g.
 `git tag v0.1.0 && git push origin v0.1.0`), or trigger it manually from the repo's
-Actions tab / `gh workflow run release.yml`. This builds macOS (signed, notarized) and
-Linux (AppImage, unsigned -- no Linux-side equivalent of Gatekeeper to satisfy) on
-their real respective runners, checking out and building `afreemail-web` on each
-runner first (same `build:web` step as local dev, just via an explicit checkout
-instead of a sibling directory) before packaging, then publishes both once both
-finish. Your Apple signing credentials only ever live in this repo's Actions secrets,
-never on a laptop disk or in a shell history.
+Actions tab / `gh workflow run release.yml`. This builds macOS (signed, notarized),
+Windows (Authenticode-signed, NSIS installer), and Linux (AppImage, unsigned -- no
+Linux-side equivalent of Gatekeeper to satisfy) on their real respective runners,
+checking out and building `afreemail-web` on each runner first (same `build:web` step
+as local dev, just via an explicit checkout instead of a sibling directory) before
+packaging, then publishes all three once they finish. Signing credentials only ever
+live in this repo's Actions secrets, never on a laptop disk or in a shell history.
 
 To add the secrets (GitHub repo -> Settings -> Secrets and variables -> Actions -> New
-repository secret), six values are needed:
+repository secret), eight values are needed:
 
 | Secret | Where it comes from |
 |---|---|
@@ -92,7 +92,15 @@ repository secret), six values are needed:
 | `APPLE_ID` | Your Apple ID email |
 | `APPLE_APP_SPECIFIC_PASSWORD` | Generated at appleid.apple.com -> Sign-In and Security -> App-Specific Passwords -- not your real Apple ID password |
 | `APPLE_TEAM_ID` | developer.apple.com -> Membership -- a 10-character code |
+| `WIN_CSC_LINK` | The Authenticode code-signing cert (OV, from Certum via My-SSL) combined with its private key into a `.pfx`: `openssl pkcs12 -export -out afreemail-codesign.pfx -inkey your-private-key.key -in your-certificate.crt -certfile ca-bundle.crt -name "AFreeMail"` (add `-legacy` after `pkcs12` if your local `openssl` is 3.x, for older-signtool compatibility), then base64-encoded the same way as `CSC_LINK` above. Separate secret name from `CSC_LINK` -- different cert entirely, just mapped onto the same `CSC_LINK` env var name inside the `windows` job's own scope. |
+| `WIN_CSC_KEY_PASSWORD` | The export password you set when creating that `.pfx` |
 | `AFREEMAIL_WEB_CHECKOUT_TOKEN` | A GitHub fine-grained personal access token (github.com -> Settings -> Developer settings -> Fine-grained tokens) scoped to read-only **Contents** access on the `Emplug/afreemail-web` repo only. Needed because the default `GITHUB_TOKEN` a workflow gets only has access to the repo it runs in -- this workflow also needs to check out a second, separate repo to bundle its build output. |
+
+The OV cert doesn't get immediate SmartScreen trust the way an EV cert would -- expect
+a "Windows protected your PC" warning on early downloads that fades as Microsoft's
+telemetry sees more clean installs of the signed binary (real timeline depends on
+download volume). It does eliminate the separate "Unknown Publisher" UAC warning
+immediately, which is the more severe of the two.
 
 `build.publish` points at `Emplug/afreemail-desktop`. `electron-updater` checks that
 feed on launch (packaged builds only) and asks before downloading/installing -- never
@@ -110,14 +118,6 @@ export at 1024x1024, then downsample to the standard icon sets (`iconutil` for
 
 ## Not yet done
 
-- Windows isn't built by CI yet -- there's no code-signing certificate, and an
-  unsigned `.exe` triggers a "Windows protected your PC" SmartScreen warning severe
-  enough that handing it out unsigned would do more harm than good. Add a `windows`
-  job to `release.yml` (matching the `mac` job's `CSC_LINK`/`CSC_KEY_PASSWORD`
-  pattern, with a real Authenticode cert instead of an Apple one, and the same
-  `afreemail-web` bundling step) once that exists. `/product/desktop` on
-  `afreemail-web` already handles this correctly either way -- it only shows a
-  Windows download button once a `.exe` asset actually exists on the release.
 - Mobile voice input for AURA Voice (`afreemail-backend`'s
   `docs/aura-voice/README.md`) hasn't shipped yet -- unrelated to this repo, noted
   here only because the desktop AURA menu is now live ahead of mobile's equivalent.
