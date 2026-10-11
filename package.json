@@ -1,6 +1,6 @@
 {
   "name": "afreemail-desktop",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "AFreeMail desktop shell -- an Electron app that bundles a real copy of afreemail-web (mail, settings, Contribion) so it opens instantly with no internet connection, talking to the real backend only for data. No marketing/legal/docs pages ship in the app bundle since the shell never navigates to them.",
   "private": true,
   "author": "AFreeMail",

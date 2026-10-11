@@ -30,7 +30,11 @@ permissions:
 
 jobs:
   mac:
-    runs-on: macos-latest
+    # Pinned, not macos-latest: the v0.1.5 release failed signing on the newer macos-26
+    # image (20260907) with "SecKeychainUnlock: The user name or passphrase you entered
+    # is not correct" from `security set-key-partition-list`, after v0.1.4 signed fine on
+    # image 20260728 of the same family. Unpin once electron-builder/the image sort it out.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
