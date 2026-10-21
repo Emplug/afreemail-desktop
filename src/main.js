@@ -49,9 +49,15 @@ protocol.registerSchemesAsPrivileged([
 // browser instead of following it in this window, and any window.open() call
 // (e.g. "open in new tab" style links) does the same. This keeps the shell scoped
 // to the app itself and avoids the window becoming a general-purpose browser.
-function isAppOrigin(url, appOrigin) {
+//
+// "The app" is the same scheme AND host as APP_URL -- NOT URL.origin. In Node, every URL with a custom or
+// opaque scheme (afreemail://, data:, javascript:, file:, blob:, mailto: ...) has the origin "null", so
+// comparing origins against the packaged app's own afreemail:// URL ("null") treated ALL of those as the
+// app: a navigation to data:/javascript:/file: was never intercepted. appUrl is `new URL(APP_URL)`.
+function isAppUrl(url, appUrl) {
   try {
-    return new URL(url).origin === appOrigin;
+    const parsed = new URL(url);
+    return parsed.protocol === appUrl.protocol && parsed.host === appUrl.host;
   } catch {
     return false;
   }
@@ -60,19 +66,30 @@ function isAppOrigin(url, appOrigin) {
 // The one in-app page that is allowed to open in a window of its own: "View original" (the email
 // viewer's More menu) opens /mail/original/<id>. Everything else window.open()ed still goes to the
 // OS browser, as above.
-//
-// Compares scheme + host + path, NOT URL.origin: in Node, every URL with a custom scheme
-// (afreemail://, data:, javascript:, mailto: ...) has the opaque origin "null", so an origin check would
-// treat any of them as "the app". appUrl is `new URL(APP_URL)`.
 function isViewOriginalUrl(url, appUrl) {
   try {
-    const parsed = new URL(url);
-    return parsed.protocol === appUrl.protocol
-      && parsed.host === appUrl.host
-      && /^\/mail\/original\/[^/]+\/?$/.test(parsed.pathname);
+    return isAppUrl(url, appUrl) && /^\/mail\/original\/[^/]+\/?$/.test(new URL(url).pathname);
   } catch {
     return false;
   }
+}
+
+// Hands a link to the OS only when it is an ordinary web or mail link. shell.openExternal will launch whatever
+// application is registered for a URL's scheme (or open a local file for file:), so a link from inside an
+// email must never reach it with a scheme like file:, javascript:, data: or an arbitrary app protocol.
+const SAFE_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+function openExternalSafely(url) {
+  try {
+    const parsed = new URL(url);
+    if (SAFE_EXTERNAL_PROTOCOLS.has(parsed.protocol)) {
+      shell.openExternal(parsed.href);
+      return true;
+    }
+    log.warn(`[afreemail-desktop] refused to open a link with scheme ${parsed.protocol}`);
+  } catch {
+    log.warn('[afreemail-desktop] refused to open an unparseable link');
+  }
+  return false;
 }
 
 // Shown in place of a blank window when APP_URL can't be reached (server down,
@@ -125,7 +142,6 @@ function createWindow() {
   });
 
   const appUrl = new URL(APP_URL);
-  const appOrigin = appUrl.origin;
 
   // Applied to the main window and to every window it opens, so a "View original" window is held to the
   // same rules (it can't open arbitrary windows or navigate away from the app either). It shares the main
@@ -152,14 +168,14 @@ function createWindow() {
           },
         };
       }
-      shell.openExternal(url);
+      openExternalSafely(url);
       return { action: 'deny' };
     });
 
     contents.on('will-navigate', (event, url) => {
-      if (!isAppOrigin(url, appOrigin)) {
+      if (!isAppUrl(url, appUrl)) {
         event.preventDefault();
-        shell.openExternal(url);
+        openExternalSafely(url);
       }
     });
 
