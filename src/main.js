@@ -57,6 +57,24 @@ function isAppOrigin(url, appOrigin) {
   }
 }
 
+// The one in-app page that is allowed to open in a window of its own: "View original" (the email
+// viewer's More menu) opens /mail/original/<id>. Everything else window.open()ed still goes to the
+// OS browser, as above.
+//
+// Compares scheme + host + path, NOT URL.origin: in Node, every URL with a custom scheme
+// (afreemail://, data:, javascript:, mailto: ...) has the opaque origin "null", so an origin check would
+// treat any of them as "the app". appUrl is `new URL(APP_URL)`.
+function isViewOriginalUrl(url, appUrl) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === appUrl.protocol
+      && parsed.host === appUrl.host
+      && /^\/mail\/original\/[^/]+\/?$/.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
 // Shown in place of a blank window when APP_URL can't be reached (server down,
 // no internet, etc.) -- without this, a load failure just leaves the user
 // staring at the BrowserWindow's plain backgroundColor with no explanation.
@@ -106,19 +124,48 @@ function createWindow() {
     },
   });
 
-  const appOrigin = new URL(APP_URL).origin;
+  const appUrl = new URL(APP_URL);
+  const appOrigin = appUrl.origin;
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
-    return { action: 'deny' };
-  });
-
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!isAppOrigin(url, appOrigin)) {
-      event.preventDefault();
+  // Applied to the main window and to every window it opens, so a "View original" window is held to the
+  // same rules (it can't open arbitrary windows or navigate away from the app either). It shares the main
+  // window's session, so it is already signed in.
+  const guardWindow = (contents) => {
+    contents.setWindowOpenHandler(({ url }) => {
+      if (isViewOriginalUrl(url, appUrl)) {
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            width: 1000,
+            height: 820,
+            minWidth: 640,
+            minHeight: 480,
+            title: 'Original message',
+            backgroundColor: '#0f172a',
+            autoHideMenuBar: true,
+            webPreferences: {
+              preload: path.join(__dirname, 'preload.js'),
+              contextIsolation: true,
+              nodeIntegration: false,
+              sandbox: true,
+            },
+          },
+        };
+      }
       shell.openExternal(url);
-    }
-  });
+      return { action: 'deny' };
+    });
+
+    contents.on('will-navigate', (event, url) => {
+      if (!isAppOrigin(url, appOrigin)) {
+        event.preventDefault();
+        shell.openExternal(url);
+      }
+    });
+
+    contents.on('did-create-window', (child) => guardWindow(child.webContents));
+  };
+  guardWindow(mainWindow.webContents);
 
   function showLoadFailure(reason) {
     console.error(`[afreemail-desktop] ${reason}`);
